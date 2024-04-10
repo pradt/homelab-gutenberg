@@ -1,0 +1,72 @@
+body {
+    width: 300px;
+    padding: 10px;
+  }
+  
+  h2 {
+    margin-top: 0;
+  }
+  
+  label {
+    display: block;
+    margin-bottom: 5px;
+  }
+  
+  input[type="text"],
+  input[type="password"] {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+  
+  button {
+    margin-top: 10px;
+  }
+  
+  .service {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  
+  .service img {
+    width: 32px;
+    height: 32px;
+    margin-right: 10px;
+  }
+  
+  .service .status {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-left: auto;
+    margin-right: 10px;
+  }
+  
+  .service .status.green {
+    background-color: green;
+  }
+  
+  .service .status.amber {
+    background-color: orange;
+  }
+  
+  .service .status.red {
+    background-color: red;
+  }
+  
+  .service .status.grey {
+    background-color: gray;
+  }
+  
+  .service .pin-icon {
+    cursor: pointer;
+    color: gray;
+  }
+  
+  .service .pin-icon.pinned {
+    color: blue;
+  }
+  
+  #pagination {
+    margin-top: 10px;
+  }

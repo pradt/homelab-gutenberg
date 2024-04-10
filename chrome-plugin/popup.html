@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Homelab Services</title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+</head>
+<body>
+  <div id="config" style="display: none;">
+    <h2>Configuration</h2>
+    <label for="wordpressUrl">WordPress URL:</label>
+    <input type="text" id="wordpressUrl" name="wordpressUrl" required>
+    <label for="username">Username:</label>
+    <input type="text" id="username" name="username">
+    <label for="password">Password:</label>
+    <input type="password" id="password" name="password">
+    <button id="saveConfig">Save</button>
+  </div>
+
+  <div id="services" style="display: none;">
+    <h2>Homelab Services</h2>
+    <div id="servicesList"></div>
+    <div id="pagination">
+      <button id="prevPage">Previous</button>
+      <button id="nextPage">Next</button>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

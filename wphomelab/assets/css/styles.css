@@ -1,0 +1,68 @@
+.homelab-service-block {
+    background-color: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+    padding: 15px;
+}
+.homelab-service-header {
+    align-items: center;
+    display: flex;
+    margin-bottom: 10px;
+}
+.homelab-service-icon {
+    font-size: 24px;
+    margin-right: 10px;
+}
+.homelab-service-image {
+    margin-right: 10px;
+}
+.homelab-service-image img {
+    max-width: 100%;
+    height: auto;
+}
+.homelab-service-title {
+    margin: 0;
+}
+.homelab-service-status {
+    margin-left: auto;
+}
+.status-indicator {
+    border-radius: 50%;
+    display: inline-block;
+    height: 10px;
+    width: 10px;
+}
+.homelab-service-body {
+    margin-bottom: 10px;
+}
+.homelab-service-description {
+    margin: 0;
+}
+.read-more {
+    color: #007bff;
+    text-decoration: none;
+}
+.read-more:hover {
+    text-decoration: underline;
+}
+.homelab-service-footer {
+    text-align: right;
+}
+.homelab-service-footer a {
+    background-color: #007bff;
+    border-color: #007bff;
+    border-radius: 4px;
+    color: #fff;
+    display: inline-block;
+    margin-left: 5px;
+    padding: 6px 12px;
+    text-align: center;
+    text-decoration: none;
+    vertical-align: middle;
+}
+.homelab-service-footer a:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}

@@ -1,0 +1,12 @@
+{
+    "manifest_version": 3,
+    "name": "WPHomeLab",
+    "version": "1.0",
+    "description": "WPHOMELAB Chrome Extension to give you quick access to your services, this requires WPHomeLab plugin to be installed on wordpress",
+    "permissions": [
+      "storage"
+    ],
+    "action": {
+      "default_popup": "popup.html"
+    }
+  }

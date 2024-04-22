@@ -302,9 +302,13 @@ function homelab_save_service_data($service_id, $data, $error_message = null, $e
     global $wpdb;
     $table_name_service_data = $wpdb->prefix . 'homelab_service_data';
 
+    // Generate a GUID
+    $guid = wp_generate_uuid4();
+
     $wpdb->insert(
         $table_name_service_data,
         array(
+            'id' => $guid,
             'service_id' => $service_id,
             'fetched_at' => current_time('mysql'),
             'data' => json_encode($data),

@@ -13,13 +13,16 @@
 }
 add_action('admin_enqueue_scripts', 'homelab_admin_scripts');
 require_once plugin_dir_path(__FILE__) . 'menupageregistration.php';
-require_once plugin_dir_path(__FILE__) . 'includes/scheduledatafetch.php';
+require_once plugin_dir_path(__FILE__) . 'includes/helperfunctions/generalhelpers.php';
+require_once plugin_dir_path(__FILE__) . 'includes/GutenbergBlocks/wphomelab-blocks.php';
+require_once plugin_dir_path(__FILE__) . 'includes/schedule-data-fetch.php';
+require_once plugin_dir_path(__FILE__) . 'includes/servicecheck.php';
+require_once plugin_dir_path(__FILE__) . 'includes/schedule-service-check.php';
 require_once plugin_dir_path(__FILE__) . 'includes/dataretentioncron.php';
 require_once plugin_dir_path(__FILE__) . 'includes/pages/settingspage.php';
 require_once plugin_dir_path(__FILE__) . 'includes/GutenbergBlocks/homelab-block.php';
 require_once plugin_dir_path(__FILE__) . 'includes/integerations/integerationincludes.php';
 require_once plugin_dir_path(__FILE__) . 'includes/datafetch.php';
-require_once plugin_dir_path(__FILE__) . 'includes/scheduledatafetch.php';
 require_once plugin_dir_path(__FILE__) . 'includes/addnote.php';
 
 //Pages
@@ -35,7 +38,6 @@ require_once plugin_dir_path(__FILE__) . 'includes/pages/debugpages/viewschedule
 //API
 require_once plugin_dir_path(__FILE__) . 'includes/Api/getservices-api.php';
 
-//add_action('homelab_delete_old_service_data', 'homelab_cron_delete_old_service_data');
 
 // Create necessary tables on plugin activation
 function homelab_plugin_activate() {
@@ -93,7 +95,7 @@ function homelab_plugin_activate() {
     ) $charset_collate;";
 
     $sql_status_logs = "CREATE TABLE $table_name_status_logs (
-        id bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT,
+        id CHAR(36) NOT NULL,
         service_id mediumint(9) NOT NULL,
         check_datetime datetime NOT NULL,
         url varchar(255) NOT NULL,
@@ -118,7 +120,7 @@ function homelab_plugin_activate() {
     ) $charset_collate;";
 
 $sql_service_data = "CREATE TABLE $table_name_service_data (
-    id mediumint(9) NOT NULL AUTO_INCREMENT,
+    id CHAR(36) NOT NULL,
     service_id mediumint(9) NOT NULL,
     fetched_at datetime NOT NULL,
     data longtext,
@@ -260,129 +262,15 @@ if ( version_compare( get_bloginfo( 'version' ), '5.8', '>=' ) ) {
 	add_filter( 'block_categories', 'register_layout_category' );
 }
 
-// Get latest service status
-function homelab_get_latest_service_status($service_id) {
-    global $wpdb;
-
-    $table_name_status_logs = $wpdb->prefix . 'homelab_service_status_logs';
-    $status = $wpdb->get_var($wpdb->prepare("SELECT status FROM $table_name_status_logs WHERE service_id = %d ORDER BY check_datetime DESC LIMIT 1", $service_id));
-
-    return $status ? $status : 'UNKNOWN';
-}
-
-// Check service status
-function homelab_check_service_status($service_id) {
-    global $wpdb;
-
-    $table_name_services = $wpdb->prefix . 'homelab_services';
-    $table_name_status_logs = $wpdb->prefix . 'homelab_service_status_logs';
-
-    $service = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name_services WHERE id = %d", $service_id));
-
-    if ($service->status_check) {
-        $url = $service->status_check_url ? $service->status_check_url : $service->service_url;
-        $disable_ssl = $service->disable_ssl;
-
-        $args = array(
-            'timeout' => 10,
-            'sslverify' => !$disable_ssl,
-        );
-
-        $response = wp_remote_get($url, $args);
-
-        if (is_wp_error($response)) {
-            $status = 'RED';
-            $response_code = 0;
-            $response_message = $response->get_error_message();
-        } else {
-            $response_code = wp_remote_retrieve_response_code($response);
-            $response_message = wp_remote_retrieve_response_message($response);
-
-            if ($response_code >= 200 && $response_code <= 299) {
-                $status = 'GREEN';
-            } elseif ($response_code >= 100 && $response_code <= 199 || $response_code >= 300 && $response_code <= 399) {
-                $status = 'AMBER';
-            } else {
-                $status = 'RED';
-            }
-
-            if ($status === 'RED') {
-                $notify_email = $service->notify_email;
-                if ($notify_email) {
-                    $subject = 'Service Down: ' . $service->name;
-                    $message = "The service '{$service->name}' is currently down. Please check the status.";
-                    wp_mail($notify_email, $subject, $message);
-                }
-            }
-        }
-
-        $wpdb->insert(
-            $table_name_status_logs,
-            array(
-                'service_id' => $service_id,
-                'check_datetime' => current_time('mysql'),
-                'url' => $url,
-                'response_code' => $response_code,
-                'response_message' => $response_message,
-                'status' => $status,
-            )
-        );
-    }
-}
-
-// Schedule service checks
-function homelab_schedule_service_checks() {
-    global $wpdb;
-
-    $table_name_services = $wpdb->prefix . 'homelab_services';
-    $services = $wpdb->get_results("SELECT * FROM $table_name_services WHERE status_check = 1");
-
-    foreach ($services as $service) {
-        if (!wp_next_scheduled('homelab_check_service_status_' . $service->id)) {
-            wp_schedule_event(time(), 'homelab_service_check_interval_' . $service->id, 'homelab_check_service_status_' . $service->id);
-        }
-    }
-}
-add_action('init', 'homelab_schedule_service_checks');
-
-// Add service check schedule
-function homelab_add_service_check_schedule($service_id, $polling_interval) {
-    $hook = 'homelab_check_service_status_' . $service_id;
-    $recurrence = 'homelab_service_check_interval_' . $service_id;
-
-    if (!wp_next_scheduled($hook)) {
-        wp_schedule_event(time(), $recurrence, $hook);
-    }
-
-    add_filter('cron_schedules', function ($schedules) use ($recurrence, $polling_interval) {
-        $schedules[$recurrence] = array(
-            'interval' => $polling_interval,
-            'display' => 'Every ' . $polling_interval . ' seconds',
-        );
-        return $schedules;
-    });
-
-    add_action($hook, function () use ($service_id) {
-        homelab_check_service_status($service_id);
-    });
-}
 
 
 
-// Helper function to get the service status class
-function homelab_get_service_status_class($service_id) {
-    $status = homelab_get_latest_service_status($service_id);
-    switch ($status) {
-        case 'GREEN':
-            return 'status-green';
-        case 'AMBER':
-            return 'status-amber';
-        case 'RED':
-            return 'status-red';
-        default:
-            return '';
-    }
-}
+
+
+
+
+
+
 
 function homelab_deactivate_plugin() {
     global $wpdb;

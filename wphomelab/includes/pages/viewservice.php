@@ -63,8 +63,10 @@ function homelab_view_service_page()
                 <button id="startDataFetchBtn" class="button button-primary" data-service-id="<?php echo $service_id; ?>">Start
                     Data Fetch</button>
                 <button id="stopDataFetchBtn" class="button button-secondary" data-service-id="<?php echo $service_id; ?>">Stop
-                    Data Fetch</button>
+                    Data Fetch</button> |
             <?php endif; ?>
+
+            <button class="button add-note-btn">Add Note</button>
         </div>
         <div class="service-details">
             <div class="service-image">
@@ -202,147 +204,39 @@ function homelab_view_service_page()
         <div class="service-tabs">
             <ul class="nav-tab-wrapper">
                 <li class="nav-tab nav-tab-active" data-tab="notes">Notes</li>
-                <li class="nav-tab" data-tab="history">Service Check History</li>
+                <li class="nav-tab" data-tab="history">Service Check</li>
+                <li class="nav-tab" data-tab="data-fetch">Data Fetchs</li>
             </ul>
             <div class="tab-content">
                 <div class="tab-pane active" id="notes">
-                    <?php
-                    // Display notes
-                    $notes = homelab_get_service_notes($service_id);
-                    if (!empty($notes)) {
-                        echo '<ul class="service-notes">';
-                        foreach ($notes as $note) {
-                            $user = get_userdata($note->user_id);
-                            $user_avatar = get_avatar($note->user_id, 32);
-                            $created_at = date('Y-m-d H:i:s', strtotime($note->created_at));
-                            ?>
-                            <li>
-                                <div class="note-header">
-                                    <div class="note-avatar">
-                                        <?php echo $user_avatar; ?>
-                                    </div>
-                                    <div class="note-author">
-                                        <?php echo esc_html($user->display_name); ?>
-                                    </div>
-                                    <div class="note-date">
-                                        <?php echo esc_html($created_at); ?>
-                                    </div>
-                                </div>
-                                <div class="note-content">
-                                    <?php echo esc_html($note->note); ?>
-                                </div>
-                            </li>
-                            <?php
-                        }
-                        echo '</ul>';
-                    } else {
-                        echo '<p>No notes found.</p>';
-                    }
-                    ?>
+                    <div class="notes-content"></div>
+                    <div class="notes-pagination"></div>
+                    <button class="button refresh-notes">Refresh Notes</button>
                 </div>
                 <div class="tab-pane" id="history">
-                    <?php
-                    // Display service check history
-                    $history = homelab_get_service_check_history($service_id);
-                    if (!empty($history)) {
-                        echo '<canvas id="service-history-chart"></canvas>';
-                        // Prepare the data for the chart
-                        $labels = [];
-                        $response_codes = [];
-                        $statuses = [];
-                        foreach ($history as $check) {
-                            $labels[] = $check->check_datetime;
-                            $response_codes[] = $check->response_code;
-                            $statuses[] = $check->status;
-                        }
-                        ?>
-                        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-                        <script>
-                            jQuery(document).ready(function ($) {
-                                var ctx = document.getElementById('service-history-chart').getContext('2d');
-                                var chart = new Chart(ctx, {
-                                    type: 'line',
-                                    data: {
-                                        labels: <?php echo json_encode($labels); ?>,
-                                        datasets: [{
-                                            label: 'Response Code',
-                                            data: <?php echo json_encode($response_codes); ?>,
-                                            borderColor: 'rgba(75, 192, 192, 1)',
-                                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
-                                            borderWidth: 1
-                                        }]
-                                    },
-                                    options: {
-                                        scales: {
-                                            y: {
-                                                beginAtZero: true
-                                            }
-                                        }
-                                    }
-                                });
-                            });
-                        </script>
-                        <?php
-                    } else {
-                        echo '<p>No service check history found.</p>';
-                    }
-                    ?>
+                    <div class="history-content"></div>
+                    <div class="history-pagination"></div>
+                    <button class="button refresh-history">Refresh Service Check</button>
                 </div>
-                <div class="tab-pane" id="history">
-                    <?php
-                    $records_per_page = 10;
-                    $current_page = isset($_GET['page_num']) ? intval($_GET['page_num']) : 1;
-                    $offset = ($current_page - 1) * $records_per_page;
-
-                    $history = homelab_get_service_data_history($service_id, $records_per_page, $offset);
-                    $total_records = homelab_get_service_data_history_count($service_id);
-                    $total_pages = ceil($total_records / $records_per_page);
-
-                    if (!empty($history)) {
-                        echo '<ul class="service-data-history">';
-                        foreach ($history as $data) {
-                            $fetched_at = date('Y-m-d H:i:s', strtotime($data->fetched_at));
-                            $json_data = json_decode($data->data, true);
-                            $error_class = $data->error_message ? 'error' : '';
-                            ?>
-                            <li class="<?php echo $error_class; ?>">
-                                <div class="data-header">
-                                    <div class="data-timestamp">
-                                        <?php echo esc_html($fetched_at); ?>
-                                    </div>
-                                    <?php if ($data->error_message): ?>
-                                        <div class="data-error">
-                                            <?php echo esc_html($data->error_message); ?>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                                <div class="data-content">
-                                    <pre><code><?php echo json_encode($json_data, JSON_PRETTY_PRINT); ?></code></pre>
-                                </div>
-                            </li>
-                            <?php
-                        }
-                        echo '</ul>';
-
-                        // Pagination links
-                        if ($total_pages > 1) {
-                            echo '<div class="pagination">';
-                            for ($i = 1; $i <= $total_pages; $i++) {
-                                $active_class = ($i == $current_page) ? 'active' : '';
-                                echo '<a href="?page=homelab-view-service&service_id=' . $service_id . '&page_num=' . $i . '" class="' . $active_class . '">' . $i . '</a>';
-                            }
-                            echo '</div>';
-                        }
-                    } else {
-                        echo '<p>No service data history found.</p>';
-                    }
-                    ?>
+                <div class="tab-pane" id="data-fetch">
+                    <div class="data-fetch-content"></div>
+                    <div class="data-fetch-pagination"></div>
+                    <button class="button refresh-data-fetch">Refresh Data Fetchs</button>
                 </div>
-
-
             </div>
         </div>
     </div>
+
+    <!--Modal -->
+    <div id="add-note-modal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add Note</h2>
+            <textarea id="note-text" rows="4" cols="50"></textarea>
+            <button class="button save-note-btn">Save Note</button>
+        </div>
+    </div>
+
     <style>
         .service-details {
             display: flex;
@@ -490,9 +384,46 @@ function homelab_view_service_page()
             background-color: #333;
             color: #fff;
         }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 50%;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
     </style>
+
     <script src="https://cdn.jsdelivr.net/npm/jquery.json-viewer@1.4.0/json-viewer/jquery.json-viewer.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jquery.json-viewer@1.4.0/json-viewer/jquery.json-viewer.css">
+
     <script>
         jQuery(document).ready(function ($) {
             // Tab functionality
@@ -538,7 +469,7 @@ function homelab_view_service_page()
 
             $('.data-content pre code').each(function () {
                 var jsonData = JSON.parse($(this).text());
-                $(this).jsonViewer(jsonData, {collapsed: true});
+                $(this).jsonViewer(jsonData, { collapsed: true });
             });
 
             // Start data fetch button click event
@@ -590,6 +521,246 @@ function homelab_view_service_page()
                     }
                 });
             });
+
+            // Load tab content on page load
+            loadNotes(1);
+            loadHistory();
+            loadDataFetch(1);
+
+            // Refresh buttons
+            $('.refresh-notes').click(function () {
+                loadNotes(1);
+            });
+
+            $('.refresh-history').click(function () {
+                loadHistory();
+            });
+
+            $('.refresh-data-fetch').click(function () {
+                loadDataFetch(1);
+            });
+
+            // Add note modal
+            var modal = $('#add-note-modal');
+            var addNoteBtn = $('.add-note-btn');
+            var closeBtn = $('.close');
+            var saveNoteBtn = $('.save-note-btn');
+
+            addNoteBtn.click(function () {
+                modal.show();
+            });
+
+            closeBtn.click(function () {
+                modal.hide();
+            });
+
+            saveNoteBtn.click(function () {
+                var noteText = $('#note-text').val();
+                var serviceId = <?php echo $service_id; ?>;
+
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'POST',
+                    data: {
+                        action: 'homelab_add_service_note',
+                        service_id: serviceId,
+                        note: noteText
+                    },
+                    success: function (response) {
+                        if (response.success) {
+                            // Clear note text
+                            $('#note-text').val('');
+                            // Hide modal
+                            modal.hide();
+                            // Refresh notes
+                            loadNotes(1);
+                        } else {
+                            // Display error toast notification
+                            alert('Failed to add note.');
+                        }
+                    }
+                });
+            });
+
+            // Load notes via AJAX
+            function loadNotes(page) {
+                var serviceId = <?php echo $service_id; ?>;
+
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'GET',
+                    data: {
+                        action: 'homelab_get_service_notes',
+                        service_id: serviceId,
+                        page: page
+                    },
+                    success: function (response) {
+                        var notesHtml = '';
+                        if (response.notes.length > 0) {
+                            notesHtml = '<ul class="service-notes">';
+                            $.each(response.notes, function (index, note) {
+                                notesHtml += '<li>' +
+                                    '<div class="note-header">' +
+                                    '<div class="note-avatar">' + note.user_avatar + '</div>' +
+                                    '<div class="note-author">' + note.user_name + '</div>' +
+                                    '<div class="note-date">' + note.created_at + '</div>' +
+                                    '</div>' +
+                                    '<div class="note-content">' + note.note + '</div>' +
+                                    '</li>';
+                            });
+                            notesHtml += '</ul>';
+                        } else {
+                            notesHtml = '<p>No notes found.</p>';
+                        }
+
+                        $('.notes-content').html(notesHtml);
+
+                        var paginationHtml = '';
+                        if (response.total_pages > 1) {
+                            paginationHtml = '<div class="pagination">';
+                            for (var i = 1; i <= response.total_pages; i++) {
+                                var activeClass = (i == page) ? 'active' : '';
+                                paginationHtml += '<a href="#" class="' + activeClass + '" data-page="' + i + '">' + i + '</a>';
+                            }
+                            paginationHtml += '</div>';
+                        }
+                        $('.notes-pagination').html(paginationHtml);
+                    }
+                });
+
+            }
+
+            // Load service check history via AJAX
+            function loadHistory() {
+                var serviceId = <?php echo $service_id; ?>;
+
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'GET',
+                    data: {
+                        action: 'homelab_get_service_check_history',
+                        service_id: serviceId
+                    },
+                    success: function (response) {
+                        var historyHtml = '';
+                        if (response.history.length > 0) {
+                            var labels = [];
+                            var responseCodes = [];
+                            var statuses = [];
+
+                            $.each(response.history, function (index, check) {
+                                labels.push(check.check_datetime);
+                                responseCodes.push(check.response_code);
+                                statuses.push(check.status);
+                            });
+
+                            historyHtml = '<canvas id="service-history-chart"></canvas>';
+
+                            $('.history-content').html(historyHtml);
+
+                            var ctx = document.getElementById('service-history-chart').getContext('2d');
+                            var chart = new Chart(ctx, {
+                                type: 'line',
+                                data: {
+                                    labels: labels,
+                                    datasets: [{
+                                        label: 'Response Code',
+                                        data: responseCodes,
+                                        borderColor: 'rgba(75, 192, 192, 1)',
+                                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                        borderWidth: 1
+                                    }]
+                                },
+                                options: {
+                                    scales: {
+                                        y: {
+                                            beginAtZero: true
+                                        }
+                                    }
+                                }
+                            });
+
+                            //$('.history-pagination').html(paginationHtml);
+
+                        } else {
+                            historyHtml = '<p>No service check history found.</p>';
+                            $('.history-content').html(historyHtml);
+                        }
+                    }
+                });
+            }
+
+            // Load data fetch history via AJAX
+            function loadDataFetch(page) {
+                var serviceId = <?php echo $service_id; ?>;
+
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'GET',
+                    data: {
+                        action: 'homelab_get_service_data_history',
+                        service_id: serviceId,
+                        page: page
+                    },
+                    success: function (response) {
+                        var dataFetchHtml = '';
+                        if (response.history.length > 0) {
+                            dataFetchHtml = '<ul class="service-data-history">';
+                            $.each(response.history, function (index, data) {
+                                var errorClass = data.error_message ? 'error' : '';
+                                dataFetchHtml += '<li class="' + errorClass + '">' +
+                                    '<div class="data-header">' +
+                                    '<div class="data-timestamp">' + data.fetched_at + '</div>' +
+                                    (data.error_message ? '<div class="data-error">' + data.error_message + '</div>' : '') +
+                                    '</div>' +
+                                    '<div class="data-content">' +
+                                    '<pre><code>' + JSON.stringify(data.data, null, 2) + '</code></pre>' +
+                                    '</div>' +
+                                    '</li>';
+                            });
+                            dataFetchHtml += '</ul>';
+                        } else {
+                            dataFetchHtml = '<p>No service data history found.</p>';
+                        }
+
+                        $('.data-fetch-content').html(dataFetchHtml);
+
+                        var paginationHtml = '';
+                        if (response.total_pages > 1) {
+                            paginationHtml = '<div class="pagination">';
+                            for (var i = 1; i <= response.total_pages; i++) {
+                                var activeClass = (i == page) ? 'active' : '';
+                                paginationHtml += '<a href="#" class="' + activeClass + '" data-page="' + i + '">' + i + '</a>';
+                            }
+                            paginationHtml += '</div>';
+                        }
+
+                        $('.data-fetch-pagination').html(paginationHtml);
+
+                        $('.data-content pre code').each(function () {
+                            var jsonData = JSON.parse($(this).text());
+                            $(this).jsonViewer(jsonData, { collapsed: true });
+                        });
+                    }
+                });
+            }
+
+            // Pagination click event
+            $(document).on('click', '.pagination a', function (e) {
+                e.preventDefault();
+                var page = $(this).data('page');
+                var tab = $('.nav-tab-active').data('tab');
+
+                if (tab === 'notes') {
+                    loadNotes(page);
+                } else if (tab === 'data-fetch') {
+                    loadDataFetch(page);
+                }
+            });
+
+
+
+
         });
     </script>
     <?php
@@ -633,3 +804,117 @@ function homelab_get_service_data_history_count($service_id)
     return $count;
 }
 
+// AJAX action to get service notes
+add_action('wp_ajax_homelab_get_service_notes', 'homelab_ajax_get_service_notes');
+function homelab_ajax_get_service_notes()
+{
+    $service_id = intval($_GET['service_id']);
+    $page = intval($_GET['page']);
+    $notes_per_page = 10;
+    $offset = ($page - 1) * $notes_per_page;
+    $notes = homelab_get_service_notes($service_id, $notes_per_page, $offset);
+    $total_notes = homelab_get_service_notes_count($service_id);
+    $total_pages = ceil($total_notes / $notes_per_page);
+
+    $notes_data = array();
+    foreach ($notes as $note) {
+        $user = get_userdata($note->user_id);
+        $notes_data[] = array(
+            'user_avatar' => get_avatar($note->user_id, 32),
+            'user_name' => $user->display_name,
+            'created_at' => date('Y-m-d H:i:s', strtotime($note->created_at)),
+            'note' => $note->note
+        );
+    }
+
+    wp_send_json(
+        array(
+            'notes' => $notes_data,
+            'total_pages' => $total_pages
+        )
+    );
+}
+
+function homelab_get_service_notes_count($service_id) {
+    global $wpdb;
+    $table_name_notes = $wpdb->prefix . 'homelab_service_notes';
+    $count = $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM $table_name_notes WHERE service_id = %d", $service_id));
+    return intval($count);
+}
+
+// AJAX action to get service check history
+add_action('wp_ajax_homelab_get_service_check_history', 'homelab_ajax_get_service_check_history');
+function homelab_ajax_get_service_check_history()
+{
+    $service_id = intval($_GET['service_id']);
+    $history = homelab_get_service_check_history($service_id);
+    $history_data = array();
+    foreach ($history as $check) {
+        $history_data[] = array(
+            'check_datetime' => $check->check_datetime,
+            'response_code' => $check->response_code,
+            'status' => $check->status
+        );
+    }
+
+    wp_send_json(
+        array(
+            'history' => $history_data
+        )
+    );
+}
+
+// AJAX action to get service data history
+add_action('wp_ajax_homelab_get_service_data_history', 'homelab_ajax_get_service_data_history');
+function homelab_ajax_get_service_data_history()
+{
+    $service_id = intval($_GET['service_id']);
+    $page = intval($_GET['page']);
+    $records_per_page = 10;
+    $offset = ($page - 1) * $records_per_page;
+    $history = homelab_get_service_data_history($service_id, $records_per_page, $offset);
+    $total_records = homelab_get_service_data_history_count($service_id);
+    $total_pages = ceil($total_records / $records_per_page);
+
+    $history_data = array();
+    foreach ($history as $data) {
+        $history_data[] = array(
+            'fetched_at' => date('Y-m-d H:i:s', strtotime($data->fetched_at)),
+            'data' => json_decode($data->data, true),
+            'error_message' => $data->error_message
+        );
+    }
+
+    wp_send_json(
+        array(
+            'history' => $history_data,
+            'total_pages' => $total_pages
+        )
+    );
+}
+
+// AJAX action to add a service note
+add_action('wp_ajax_homelab_add_service_note', 'homelab_ajax_add_service_note');
+function homelab_ajax_add_service_note()
+{
+    $service_id = intval($_POST['service_id']);
+    $note = sanitize_text_field($_POST['note']);
+    $user_id = get_current_user_id();
+
+    global $wpdb;
+    $table_name_notes = $wpdb->prefix . 'homelab_service_notes';
+    $result = $wpdb->insert($table_name_notes, array(
+        'service_id' => $service_id,
+        'user_id' => $user_id,
+        'note' => $note,
+        'created_at' => current_time('mysql')
+    )
+    );
+
+    if ($result) {
+        wp_send_json_success();
+    } else {
+        wp_send_json_error();
+    }
+
+}

@@ -1,4 +1,4 @@
-<?
+<?php
 /******************
  * ChangeDetection.io Self-Hosted Data Collection
  * ----------------------------------------------

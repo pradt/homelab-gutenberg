@@ -1,20 +1,62 @@
 <?php
-
-/***
- * Synology Disk Station
- * ---------------------
- * Total Shares: The total number of shares on the Synology DiskStation.
-Total Size: The total storage capacity of the specified volume (if provided).
-Used Size: The used storage space of the specified volume (if provided).
-Free Size: The free storage space of the specified volume (if provided).
-Used Percentage: The percentage of used storage space of the specified volume (if provided).
- * Uptime: The uptime of the Synology DiskStation in seconds.
-Volume Count: The total number of available volumes on the Synology DiskStation.
-CPU Usage: The current CPU usage percentage.
-Memory Usage: The current memory usage percentage.
- */
-
- function homelab_fetch_synology_data($api_url, $username, $password, $volume, $service_id) {
+/******************
+* Synology Disk Station Data Collection
+* --------------------------------------
+* This function collects data from a Synology Disk Station for dashboard display.
+* It fetches information about the system status, storage usage, and performance metrics.
+*
+* Collected Data:
+* - Total number of shares
+* - Volume information (total size, used size, free size, used percentage)
+* - System uptime
+* - Number of volumes
+* - CPU usage
+* - Memory usage
+*
+* Data not collected but available for extension:
+* - Detailed share information (owner, permissions, mount point type)
+* - Network traffic statistics
+* - Disk health status and S.M.A.R.T. information
+* - User and group management data
+* - Backup and replication status
+* - Package and application details
+*
+* Opportunities for additional data collection:
+* - System logs and event history
+* - File system analytics (file types, sizes, modifications)
+* - Active connections and resource utilization per user or IP
+* - Scheduled task execution status
+* - Surveillance station camera feeds and recordings
+*
+* Example of fetched_data structure:
+* {
+*   "total_shares": 10,
+*   "total_size": 12000000000000,
+*   "used_size": 6500000000000,
+*   "free_size": 5500000000000,
+*   "used_percentage": 54.17,
+*   "uptime": 864000,
+*   "volume_count": 2,
+*   "cpu_usage": 25,
+*   "memory_usage": 60
+* }
+*
+* Requirements:
+* - Synology Disk Station API should be accessible via the provided API URL.
+* - API authentication (username and password) is required to access the API.
+*
+* Parameters:
+* - $api_url: The base URL of the Synology Disk Station API.
+* - $username: The username for API authentication.
+* - $password: The password for API authentication.
+* - $volume: The volume path for which to retrieve volume status information.
+* - $service_id: The ID of the service being monitored.
+*
+* Error Handling:
+* - Captures any errors encountered during the API request process.
+* - Stores error messages and timestamps for troubleshooting.
+*******************/
+function homelab_fetch_synology_data($api_url, $username, $password, $volume, $service_id) {
     $auth_url = rtrim($api_url, '/') . '/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=login&account=' . $username . '&passwd=' . $password . '&session=homelab_session';
     $auth_response = wp_remote_get($auth_url);
 

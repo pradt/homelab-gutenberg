@@ -48,7 +48,7 @@
 *   "avg_uptime_percentage": 99.5
 * }
 *******************/
-function homelab_fetch_uptimerobot_data($api_url, $api_key, $service_id) {
+/* function homelab_fetch_uptimerobot_data($api_url, $api_key, $service_id) {
     $api_url = rtrim($api_url, '/');
     $endpoints = array(
         'monitors' => '/v2/getMonitors',
@@ -110,4 +110,4 @@ function homelab_fetch_uptimerobot_data($api_url, $api_key, $service_id) {
 
     homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
     return $fetched_data;
-}
+} */

@@ -131,3 +131,12 @@ function homelab_fetch_radarr_data($api_url, $api_key = '', $service_id) {
     homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
     return $fetched_data;
 }
+
+function homelab_format_bytes($bytes, $precision = 2) {
+    $units = array('B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB');
+    $bytes = max($bytes, 0);
+    $pow = floor(($bytes ? log($bytes) : 0) / log(1024));
+    $pow = min($pow, count($units) - 1);
+    $bytes /= pow(1024, $pow);
+    return round($bytes, $precision) . ' ' . $units[$pow];
+}

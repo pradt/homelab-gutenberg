@@ -50,6 +50,8 @@ function homelab_fetch_prowlarr_data($api_url, $api_key, $service_id) {
     $api_url = rtrim($api_url, '/');
     $endpoints = array(
         'indexers' => '/api/v1/indexer',
+        'indexerstats' => '/api/v1/indexerstats',
+        'indexerstatus' => '/api/v1/indexerstatus',
     );
     $fetched_data = array();
     $error_message = null;
@@ -82,17 +84,16 @@ function homelab_fetch_prowlarr_data($api_url, $api_key, $service_id) {
             $fetched_data['disabled_indexers'] = count(array_filter($data, function ($indexer) {
                 return $indexer['enable'] === false;
             }));
+        }
 
-            $total_releases = 0;
-            $total_downloads = 0;
+        if ($key === 'indexerstats') {
+            $total_queries = array_sum(array_column($data, 'queries'));
+            $fetched_data['total_queries'] = $total_queries;
+        }
 
-            foreach ($data as $indexer) {
-                $total_releases += $indexer['releases'];
-                $total_downloads += $indexer['grabCount'];
-            }
-
-            $fetched_data['total_releases'] = $total_releases;
-            $fetched_data['total_downloads'] = $total_downloads;
+        if ($key === 'indexerstatus') {
+            $fetched_data['indexer_errors'] = array_sum(array_column($data, 'errorCount'));
+            $fetched_data['indexer_warnings'] = array_sum(array_column($data, 'warningCount'));
         }
     }
 

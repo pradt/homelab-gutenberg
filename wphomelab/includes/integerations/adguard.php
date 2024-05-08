@@ -62,7 +62,13 @@
         // Extract required data
         $total_queries = $stats_data['num_dns_queries'];
         $blocked_queries = $stats_data['num_blocked_filtering'];
-        $percentage_blocked = round(($blocked_queries / $total_queries) * 100, 2);
+        $percentage_blocked = 0; //round(($blocked_queries / $total_queries) * 100, 2);
+
+        if ($total_queries != 0) {
+            $percentage_blocked = round(($blocked_queries / $total_queries) * 100, 2);
+        } else {
+            $percentage_blocked = 0;
+        }
 
         // Assuming another endpoint for filter status: /control/filtering/status
         $filter_status_url = rtrim($api_url, '/') . '/control/filtering/status';

@@ -194,7 +194,7 @@ function homelab_get_data_from_service($service)
         case 'opnsense':
             return homelab_fetch_opnsense_data($api_url, $username, $password, $service_id);
         case 'overseerr':
-            return homelab_fetch_overseer_data($api_url, $api_key, $service_id);
+            return homelab_fetch_overseerr_data($api_url, $api_key, $service_id);
         case 'paperless':
             return homelab_fetch_paperless_data($api_url, $api_key, $username, $password, $service_id);
         case 'peanut':
@@ -216,7 +216,7 @@ function homelab_get_data_from_service($service)
         case 'prowlarr':
             return homelab_fetch_prowlarr_data($api_url, $api_key, $service_id);
         case 'proxmox':
-            return homelab_fetch_proxmox_data($api_url, $username, $password, $service_id);
+            return homelab_fetch_proxmox_data($api_url, $username, $api_key, $service_id);
         case 'proxmox-backup':
             return homelab_fetch_proxmox_backup_data($api_url, $username, $password, $service_id);
         case 'pterodactyl':
@@ -276,7 +276,7 @@ function homelab_get_data_from_service($service)
             return homelab_fetch_unmanic_data($api_url, $api_key, $service_id);
         case 'uptimekuma':
             $slug = $service['slug'];
-            return homelab_fetch_uptimekuma_data($api_url, $slug, $service_id);
+            return homelab_fetch_uptimekuma_data($api_url, $service_id);
         case 'uptimerobot':
             return homelab_fetch_uptimerobot_data($api_url, $api_key, $service_id);
         case 'watchtower':

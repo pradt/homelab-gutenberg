@@ -222,6 +222,7 @@ function homelab_view_service_page()
                     <div class="data-fetch-content"></div>
                     <div class="data-fetch-pagination"></div>
                     <button class="button refresh-data-fetch">Refresh Data Fetchs</button>
+                    <button class="button check-now-btn">Check Now</button>
                 </div>
             </div>
         </div>
@@ -236,6 +237,14 @@ function homelab_view_service_page()
             <button class="button save-note-btn">Save Note</button>
         </div>
     </div>
+    <div id="check-now-modal" class="modal">
+    <div class="modal-content">
+        <span class="close">&times;</span>
+        <h2>Fetched Data</h2>
+        <div class="loading-spinner"></div>
+        <div class="fetched-data-content"></div>
+    </div>
+</div>
 
     <style>
         .service-details {
@@ -419,6 +428,25 @@ function homelab_view_service_page()
             text-decoration: none;
             cursor: pointer;
         }
+        .loading-spinner {
+    display: none;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #3498db;
+    border-radius: 50%;
+    width: 30px;
+    height: 30px;
+    animation: spin 2s linear infinite;
+    margin: 0 auto;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
     </style>
 
     <script src="https://cdn.jsdelivr.net/npm/jquery.json-viewer@1.4.0/json-viewer/jquery.json-viewer.js"></script>
@@ -581,6 +609,47 @@ function homelab_view_service_page()
                     }
                 });
             });
+
+            // Check Now button click event
+$('.check-now-btn').click(function () {
+    var serviceId = <?php echo $service_id; ?>;
+    var modal = $('#check-now-modal');
+    var loadingSpinner = modal.find('.loading-spinner');
+    var fetchedDataContent = modal.find('.fetched-data-content');
+
+    modal.show();
+    loadingSpinner.show();
+    fetchedDataContent.empty();
+
+    $.ajax({
+        url: ajaxurl,
+        method: 'POST',
+        data: {
+            action: 'homelab_check_now',
+            service_id: serviceId
+        },
+        success: function (response) {
+            loadingSpinner.hide();
+            if (response.success) {
+                var jsonData = JSON.parse(response.data);
+                fetchedDataContent.jsonViewer(jsonData, { collapsed: true });
+            } else {
+                fetchedDataContent.html('<p>Error: ' + response.error + '</p>');
+            }
+        },
+        error: function () {
+            loadingSpinner.hide();
+            fetchedDataContent.html('<p>An error occurred while fetching the data.</p>');
+        }
+    });
+});
+
+// Close the modal when the close button is clicked
+$('.close').click(function () {
+    $('#check-now-modal').hide();
+});
+
+            
 
             // Load notes via AJAX
             function loadNotes(page) {
@@ -917,4 +986,17 @@ function homelab_ajax_add_service_note()
         wp_send_json_error();
     }
 
+}
+
+add_action('wp_ajax_homelab_check_now', 'homelab_ajax_check_now');
+function homelab_ajax_check_now() {
+    $service_id = intval($_POST['service_id']);
+    $service = homelab_get_service($service_id);
+
+    if ($service) {
+        $data = homelab_get_data_from_service($service);
+        wp_send_json_success(json_encode($data));
+    } else {
+        wp_send_json_error('Service not found.');
+    }
 }

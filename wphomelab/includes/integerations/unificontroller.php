@@ -1,5 +1,5 @@
 <?php
-/******************
+/********************
  * Unifi Controller Data Collection
  * --------------------------------
  * This function collects data from the Unifi Controller, a network management system, for dashboard display.
@@ -11,6 +11,11 @@
  * - Total number of connected clients
  * - Number of clients by connection type (wired, wireless)
  * - Total network traffic (upload and download)
+ * - Number of connected clients per device
+ * - Device uptime
+ * - WAN IP and ISP information
+ * - Gateway system stats (CPU usage, memory usage, uptime)
+ * - VPN stats (number of active and inactive remote users, remote user traffic)
  *
  * Data not collected but available for extension:
  * - Detailed device information (name, model, IP address, firmware version)
@@ -45,9 +50,29 @@
  *   "clients_wired": 20,
  *   "clients_wireless": 30,
  *   "total_traffic_upload": 1000,
- *   "total_traffic_download": 5000
+ *   "total_traffic_download": 5000,
+ *   "devices": {
+ *     "device_mac_1": {
+ *       "num_clients": 10,
+ *       "uptime": 3600
+ *     },
+ *     "device_mac_2": {
+ *       "num_clients": 5,
+ *       "uptime": 7200
+ *     }
+ *   },
+ *   "wan_ip": "192.168.1.1",
+ *   "isp_name": "Example ISP",
+ *   "isp_organization": "Example Organization",
+ *   "gw_cpu_usage": 30,
+ *   "gw_mem_usage": 50,
+ *   "gw_uptime": 86400,
+ *   "remote_user_num_active": 5,
+ *   "remote_user_num_inactive": 10,
+ *   "remote_user_rx_bytes": 1000,
+ *   "remote_user_tx_bytes": 2000
  * }
- *******************/
+ ********************/
 function homelab_fetch_unifi_data($api_url, $username, $password, $service_id)
 {
     $api_url = rtrim($api_url, '/');
@@ -180,16 +205,40 @@ function homelab_fetch_unifi_data($api_url, $username, $password, $service_id)
                 'gateways' => 0,
             );
 
+            $total_traffic_upload = 0;
+            $total_traffic_download = 0;
+
             foreach ($data['data'] as $device) {
                 $type = strtolower($device['type']);
+
                 if (isset($type_counts[$type])) {
                     $type_counts[$type]++;
+                }
+
+                if (isset($device['tx_bytes'])) {
+                    $total_traffic_upload += $device['tx_bytes'];
+                }
+
+                if (isset($device['rx_bytes'])) {
+                    $total_traffic_download += $device['rx_bytes'];
+                }
+
+                // Number of connected clients per device
+                if (isset($device['num_sta'])) {
+                    $fetched_data['devices'][$device['mac']]['num_clients'] = $device['num_sta'];
+                }
+
+                // Device uptime
+                if (isset($device['uptime'])) {
+                    $fetched_data['devices'][$device['mac']]['uptime'] = $device['uptime'];
                 }
             }
 
             $fetched_data['devices_access_points'] = $type_counts['access_points'];
             $fetched_data['devices_switches'] = $type_counts['switches'];
             $fetched_data['devices_gateways'] = $type_counts['gateways'];
+            $fetched_data['total_traffic_upload'] = $total_traffic_upload;
+            $fetched_data['total_traffic_download'] = $total_traffic_download;
         }
 
         if ($key === 'clients' && isset($data['data'])) {
@@ -214,7 +263,7 @@ function homelab_fetch_unifi_data($api_url, $username, $password, $service_id)
         }
 
         if ($key === 'networks' && isset($data['data'])) {
-            $total_traffic_upload = 0;
+            /* $total_traffic_upload = 0;
             $total_traffic_download = 0;
 
             foreach ($data['data'] as $network) {
@@ -223,10 +272,52 @@ function homelab_fetch_unifi_data($api_url, $username, $password, $service_id)
             }
 
             $fetched_data['total_traffic_upload'] = $total_traffic_upload;
-            $fetched_data['total_traffic_download'] = $total_traffic_download;
+            $fetched_data['total_traffic_download'] = $total_traffic_download; */
+        }
+
+        if ($key === 'health' && isset($data['data'])) {
+            foreach ($data['data'] as $subsystem) {
+                if ($subsystem['subsystem'] === 'wan' && isset($subsystem['wan_ip'])) {
+                    // WAN IP and ISP information
+                    $fetched_data['wan_ip'] = $subsystem['wan_ip'];
+                    $fetched_data['isp_name'] = $subsystem['isp_name'];
+                    $fetched_data['isp_organization'] = $subsystem['isp_organization'];
+    
+                    // Gateway system stats
+                    if (isset($subsystem['gw_system-stats'])) {
+                        $fetched_data['gw_cpu_usage'] = $subsystem['gw_system-stats']['cpu'];
+                        $fetched_data['gw_mem_usage'] = $subsystem['gw_system-stats']['mem'];
+                        $fetched_data['gw_uptime'] = $subsystem['gw_system-stats']['uptime'];
+                    }
+                }
+    
+                if ($subsystem['subsystem'] === 'vpn') {
+                    // VPN stats
+                    $fetched_data['remote_user_num_active'] = $subsystem['remote_user_num_active'];
+                    $fetched_data['remote_user_num_inactive'] = $subsystem['remote_user_num_inactive'];
+                    $fetched_data['remote_user_rx_bytes'] = $subsystem['remote_user_rx_bytes'];
+                    $fetched_data['remote_user_tx_bytes'] = $subsystem['remote_user_tx_bytes'];
+                }
+            }
         }
     }
 
     homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
     return $fetched_data;
 }
+
+/*
+// Convert uptime to a readable format
+$uptime_formatted = sprintf('%02d days, %02d hours, %02d minutes',
+                            floor($uptime / 86400),
+                            floor(($uptime % 86400) / 3600),
+                            floor(($uptime % 3600) / 60));
+
+// Format memory usage and CPU usage as percentages
+$mem_usage_formatted = round($gw_mem_usage, 2) . '%';
+$cpu_usage_formatted = round($gw_cpu_usage, 2) . '%';
+
+// Convert traffic to a suitable unit (e.g., MB)
+$traffic_download_mb = round($total_traffic_download / 1024 / 1024, 2);
+$traffic_upload_mb = round($total_traffic_upload / 1024 / 1024, 2);
+*/

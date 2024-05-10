@@ -57,110 +57,186 @@
 * - Stores error messages and timestamps for troubleshooting.
 *******************/
 function homelab_fetch_synology_data($api_url, $username, $password, $volume, $service_id) {
-    $auth_url = rtrim($api_url, '/') . '/webapi/auth.cgi?api=SYNO.API.Auth&version=3&method=login&account=' . $username . '&passwd=' . $password . '&session=homelab_session';
-    $auth_response = wp_remote_get($auth_url);
+    $auth_url = rtrim($api_url, '/') . '/webapi/auth.cgi';
+    $auth_params = array(
+        'api' => 'SYNO.API.Auth',
+        'version' => '3',
+        'method' => 'login',
+        'account' => $username,
+        'passwd' => $password,
+        'session' => 'homelab_session',
+        'format' => 'sid'
+    );
+    $auth_response = wp_remote_get($auth_url, array('body' => $auth_params));
 
+    $fetched_data = array(
+        'raw_responses' => array(),
+    );
     $error_message = null;
     $error_timestamp = null;
 
     if (is_wp_error($auth_response)) {
         $error_message = $auth_response->get_error_message();
         $error_timestamp = current_time('mysql');
-        return array();
+        error_log("Authentication failed: " . $error_message);
+        homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
+        return $fetched_data;
     }
 
     $auth_response_code = wp_remote_retrieve_response_code($auth_response);
     if ($auth_response_code !== 200) {
         $error_message = "Authentication failed with status code: $auth_response_code";
         $error_timestamp = current_time('mysql');
-        return array();
+        error_log($error_message);
+        homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
+        return $fetched_data;
     }
 
-    $auth_data = json_decode(wp_remote_retrieve_body($auth_response), true);
+    $auth_body = wp_remote_retrieve_body($auth_response);
+    $fetched_data['raw_responses']['auth'] = $auth_body;
+
+    $auth_data = json_decode($auth_body, true);
     $sid = $auth_data['data']['sid'];
 
-    $stats_url = rtrim($api_url, '/') . '/webapi/entry.cgi?api=SYNO.FileStation.List&version=2&method=list_share&additional=size,owner,time,perm,mount_point_type,volume_status&sid=' . $sid;
-    $stats_response = wp_remote_get($stats_url);
+    $api_info_url = rtrim($api_url, '/') . '/webapi/query.cgi';
+    $api_info_params = array(
+        'api' => 'SYNO.API.Info',
+        'version' => '1',
+        'method' => 'query',
+        'query' => 'all'
+    );
+    $api_info_response = wp_remote_get($api_info_url, array('body' => $api_info_params));
+    $api_info_data = json_decode(wp_remote_retrieve_body($api_info_response), true);
 
-    if (is_wp_error($stats_response)) {
-        $error_message = $stats_response->get_error_message();
+    if (!isset($api_info_data['data'])) {
+        $error_message = "Invalid API info response: Missing 'data' key";
         $error_timestamp = current_time('mysql');
-        return array();
+        error_log($error_message);
+        homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
+        return $fetched_data;
     }
 
-    $stats_response_code = wp_remote_retrieve_response_code($stats_response);
-    if ($stats_response_code !== 200) {
-        $error_message = "API request failed with status code: $stats_response_code";
-        $error_timestamp = current_time('mysql');
-        return array();
-    }
-
-    $stats_data = json_decode(wp_remote_retrieve_body($stats_response), true);
-    $total_shares = count($stats_data['data']['shares']);
-
-    $system_url = rtrim($api_url, '/') . '/webapi/entry.cgi?api=SYNO.Core.System&version=1&method=info&sid=' . $sid;
-    $system_response = wp_remote_get($system_url);
-
-    if (!is_wp_error($system_response) && wp_remote_retrieve_response_code($system_response) === 200) {
-        $system_data = json_decode(wp_remote_retrieve_body($system_response), true);
-        $uptime = $system_data['data']['uptime'];
-    } else {
-        $uptime = 0;
-    }
-
-    $volume_url = rtrim($api_url, '/') . '/webapi/entry.cgi?api=SYNO.Storage.Volume&version=1&method=list&sid=' . $sid;
-    $volume_response = wp_remote_get($volume_url);
-
-    if (!is_wp_error($volume_response) && wp_remote_retrieve_response_code($volume_response) === 200) {
-        $volume_data = json_decode(wp_remote_retrieve_body($volume_response), true);
-        $volumes = $volume_data['data']['volumes'];
-        $volume_count = count($volumes);
-    } else {
-        $volume_count = 0;
-    }
-
-    $resource_url = rtrim($api_url, '/') . '/webapi/entry.cgi?api=SYNO.Core.System.Utilization&version=1&method=get&type=current&resource=cpu,memory&sid=' . $sid;
-    $resource_response = wp_remote_get($resource_url);
-
-    if (!is_wp_error($resource_response) && wp_remote_retrieve_response_code($resource_response) === 200) {
-        $resource_data = json_decode(wp_remote_retrieve_body($resource_response), true);
-        $cpu_usage = $resource_data['data']['cpu']['user_load'];
-        $memory_usage = $resource_data['data']['memory']['real_usage'];
-    } else {
-        $cpu_usage = 0;
-        $memory_usage = 0;
-    }
-
-    $volume_url = rtrim($api_url, '/') . '/webapi/entry.cgi?api=SYNO.FileStation.VolumeStatus&version=1&method=list&additional=size_total,size_used,size_free,percentage_used&volume_path=' . $volume . '&sid=' . $sid;
-    $volume_response = wp_remote_get($volume_url);
-
-    if (!is_wp_error($volume_response) && wp_remote_retrieve_response_code($volume_response) === 200) {
-        $volume_data = json_decode(wp_remote_retrieve_body($volume_response), true);
-        $volume_info = $volume_data['data']['volumes'][0];
-        $total_size = $volume_info['size_total'];
-        $used_size = $volume_info['size_used'];
-        $free_size = $volume_info['size_free'];
-        $used_percentage = $volume_info['percentage_used'];
-    } else {
-        $total_size = 0;
-        $used_size = 0;
-        $free_size = 0;
-        $used_percentage = 0;
-    }
-
-    $fetched_data = array(
-        'total_shares' => $total_shares,
-        'total_size' => $total_size,
-        'used_size' => $used_size,
-        'free_size' => $free_size,
-        'used_percentage' => $used_percentage,
-        'uptime' => $uptime,
-        'volume_count' => $volume_count,
-        'cpu_usage' => $cpu_usage,
-        'memory_usage' => $memory_usage,
+    $endpoints = array(
+        'shares' => array(
+            'api' => 'SYNO.FileStation.List',
+            'version' => '2',
+            'method' => 'list_share',
+            'additional' => 'size,owner,time,perm,mount_point_type,volume_status'
+        ),
+        'system' => array(
+            'api' => 'SYNO.Core.System',
+            'version' => '1',
+            'method' => 'info'
+        ),
+        'volumes' => array(
+            'api' => 'SYNO.Storage.Volume',
+            'version' => '1',
+            'method' => 'list'
+        ),
+        'resources' => array(
+            'api' => 'SYNO.Core.System.Utilization',
+            'version' => '1',
+            'method' => 'get',
+            'type' => 'current',
+            'resource' => 'cpu,memory'
+        ),
+        'volume_status' => array(
+            'api' => 'SYNO.FileStation.VolumeStatus',
+            'version' => '1',
+            'method' => 'list',
+            'additional' => 'size_total,size_used,size_free,percentage_used',
+            'volume_path' => $volume
+        ),
     );
 
-    homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
+    foreach ($endpoints as $key => $endpoint) {
+        $api_name = $endpoint['api'];
 
+        if (!isset($api_info_data['data'][$api_name])) {
+            $error_message = "API '$api_name' not found in API info response";
+            $error_timestamp = current_time('mysql');
+            error_log($error_message);
+            continue;
+        }
+
+        $api_path = $api_info_data['data'][$api_name]['path'];
+        $max_version = $api_info_data['data'][$api_name]['maxVersion'];
+
+        $url = rtrim($api_url, '/') . '/webapi/' . $api_path;
+        $params = array(
+            'api' => $api_name,
+            'version' => min($endpoint['version'], $max_version),
+            'method' => $endpoint['method'],
+            '_sid' => $sid
+        );
+
+        if (isset($endpoint['additional'])) {
+            $params['additional'] = $endpoint['additional'];
+        }
+
+        if ($key === 'volume_status') {
+            $params['volume_path'] = $volume;
+        }
+
+        $response = wp_remote_get($url, array('body' => $params));
+
+
+        //$url = rtrim($api_url, '/') . $endpoint;
+        //$response = wp_remote_get($url);
+
+        if (is_wp_error($response)) {
+            $error_message = "API request failed for endpoint '{$key}': " . $response->get_error_message();
+            $error_timestamp = current_time('mysql');
+            error_log($error_message);
+            continue;
+        }
+
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code !== 200) {
+            $error_message = "API request failed for endpoint '{$key}' with status code: $response_code";
+            $error_timestamp = current_time('mysql');
+            error_log($error_message);
+            continue;
+        }
+
+        $response_body = wp_remote_retrieve_body($response);
+        $fetched_data['raw_responses'][$key] = $response_body;
+
+        $data = json_decode($response_body, true);
+
+        if (!is_array($data)) {
+            $error_message = "Invalid response data for endpoint '$key'";
+            $error_timestamp = current_time('mysql');
+            error_log($error_message);
+            continue;
+        }
+
+        if ($key === 'shares' && isset($data['data']['shares'])) {
+            $fetched_data['total_shares'] = count($data['data']['shares']);
+        }
+
+        if ($key === 'system' && isset($data['data']) && isset($data['data']['uptime'])) {
+            $fetched_data['uptime'] = $data['data']['uptime'];
+        }
+
+        if ($key === 'volumes' && isset($data['data']['volumes'])) {
+            $fetched_data['volume_count'] = count($data['data']['volumes']);
+        }
+
+        if ($key === 'resources' && isset($data['data'])) {
+            $fetched_data['cpu_usage'] = $data['data']['cpu']['user_load'];
+            $fetched_data['memory_usage'] = $data['data']['memory']['real_usage'];
+        }
+
+        if ($key === 'volume_status' && isset($data['data']['volumes'][0])) {
+            $volume_info = $data['data']['volumes'][0];
+            $fetched_data['total_size'] = $volume_info['size_total'];
+            $fetched_data['used_size'] = $volume_info['size_used'];
+            $fetched_data['free_size'] = $volume_info['size_free'];
+            $fetched_data['used_percentage'] = $volume_info['percentage_used'];
+        }
+    }
+
+    homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
     return $fetched_data;
 }

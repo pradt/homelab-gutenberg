@@ -36,14 +36,13 @@
     $api_url = rtrim($api_url, '/');
     $endpoints = array(
         'status' => '/api/status',
-        'flows' => '/api/flows',
-        'statistics' => '/api/statistics',
+        //'flows' => '/api/flows',
+        //'statistics' => '/api/statistics',
     );
     $fetched_data = array();
     $error_message = null;
     $error_timestamp = null;
 
-    // Store the raw responses from each endpoint
     $fetched_data['raw_responses'] = array();
 
     foreach ($endpoints as $key => $endpoint) {
@@ -61,7 +60,6 @@
         $response_body = wp_remote_retrieve_body($response);
         $fetched_data['raw_responses'][$key] = $response_body;
 
-        // Check the response code before processing the data
         if ($response_code !== 200) {
             $error_message = "API request failed for endpoint '{$key}' with status code: " . $response_code;
             $error_timestamp = current_time('mysql');
@@ -70,9 +68,16 @@
             continue;
         }
 
+        $content_type = wp_remote_retrieve_header($response, 'content-type');
+        if (strpos($content_type, 'application/json') === false) {
+            $error_message = "Unexpected content type for endpoint '{$key}': " . $content_type;
+            $error_timestamp = current_time('mysql');
+            error_log("FileFlows API Error: " . $error_message);
+            continue;
+        }
+
         $data = json_decode($response_body, true);
 
-        // Check if the JSON decoding was successful
         if ($data === null) {
             $error_message = "Invalid API response for endpoint '{$key}': " . $response_body;
             $error_timestamp = current_time('mysql');
@@ -81,40 +86,17 @@
         }
 
         if ($key === 'status') {
-            // Check if the required fields are present in the response
-            if (isset($data['status']) && isset($data['version'])) {
-                $fetched_data['server_status'] = $data['status'] === 'running' ? 'running' : 'stopped';
-                $fetched_data['server_version'] = $data['version'];
+            if (isset($data['queue']) && isset($data['processing'])) {
+                $fetched_data['queue'] = $data['queue'];
+                $fetched_data['processing'] = $data['processing'];
             } else {
                 $error_message = "Missing required fields in 'status' API response: " . $response_body;
-                $error_timestamp = current_time('mysql');
-                error_log("FileFlows API Error: " . $error_message);
-            }
-        } elseif ($key === 'flows') {
-            $active_flows = 0;
-            foreach ($data as $flow) {
-                // Check if the 'status' field is present in the flow data
-                if (isset($flow['status']) && $flow['status'] === 'active') {
-                    $active_flows++;
-                }
-            }
-            $fetched_data['active_flows_count'] = $active_flows;
-            $fetched_data['total_flows_count'] = count($data);
-        } elseif ($key === 'statistics') {
-            // Check if the required fields are present in the response
-            if (isset($data['processedFiles']) && isset($data['processedBytes'])) {
-                $fetched_data['processed_files_count'] = $data['processedFiles'];
-                $fetched_data['processed_bytes_count'] = $data['processedBytes'];
-            } else {
-                $error_message = "Missing required fields in 'statistics' API response: " . $response_body;
                 $error_timestamp = current_time('mysql');
                 error_log("FileFlows API Error: " . $error_message);
             }
         }
     }
 
-    // Save the fetched data and error details to the database
     homelab_save_service_data($service_id, $fetched_data, $error_message, $error_timestamp);
-
     return $fetched_data;
 }
